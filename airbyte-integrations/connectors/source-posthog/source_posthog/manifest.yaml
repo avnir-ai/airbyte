@@ -51,7 +51,7 @@ definitions:
       $ref: "#/definitions/retriever"
       requester:
         $ref: "#/definitions/requester"
-        path: "projects"
+        path: "projects/{{ config['project_id'] }}"
     $parameters:
       name: "projects"
       path: "projects"
@@ -148,7 +148,6 @@ definitions:
           type: RequestPath
 
 streams:
-  - "#/definitions/projects_stream"
   - "#/definitions/cohorts_stream"
   - "#/definitions/feature_flags_stream"
   - "#/definitions/persons_stream"
@@ -158,4 +157,4 @@ streams:
 
 check:
   type: CheckStream
-  stream_names: ["projects"]
+  stream_names: ["cohorts"]
