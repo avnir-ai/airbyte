@@ -127,13 +127,7 @@ definitions:
       record_selector:
         $ref: "#/definitions/selector"
       requester:
-        type: CustomRequester
-        class_name: source_posthog.components.EventsHttpRequester
-        url_base: "{{ config['base_url'] or 'https://app.posthog.com'}}/api/"
-        http_method: "GET"
-        authenticator:
-          type: BearerAuthenticator
-          api_token: "{{ config['api_key'] }}"
+        $ref: "#/definitions/requester"
         path: "/projects/{{ config['project_id'] }}/{{ parameters['name'] }}/"
       paginator:
         type: "DefaultPaginator"
