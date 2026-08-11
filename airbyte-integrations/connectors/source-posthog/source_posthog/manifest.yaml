@@ -115,22 +115,28 @@ definitions:
     schema_loader:
       $ref: "#/definitions/schema_loader"
     retriever:
-      transformations:
-        - class_name: "source_posthog.components.EventsSimpleRetriever"
-          fields:
-            - path: ["name"]
-              value: "{{ parameters['name'] }}"
-            - path: ["primary_key"]
-              value: "{{ parameters['primary_key'] }}"
-      name: "{{ parameters['name'] }}"
-      primary_key: "{{ parameters['primary_key'] }}"
+      type: CustomRetriever
+      class_name: "source_posthog.components.EventsSimpleRetriever"
       record_selector:
         $ref: "#/definitions/selector"
+        # CustomRetriever factory-gap boilerplate: create_custom_component() does not
+        # replicate create_simple_retriever()'s kwargs wiring, so record_selector needs
+        # its transformations supplied explicitly via $parameters. An empty list ([]) is
+        # silently dropped by a ManifestComponentTransformer propagation quirk
+        # (manifest_component_transformer.py:130-138), so use an empty string instead
+        # (iterates zero times — same effect, but survives the transform).
+        $parameters:
+          transformations: ""
       requester:
         $ref: "#/definitions/requester"
         path: "/projects/{{ config['project_id'] }}/{{ parameters['name'] }}/"
       paginator:
         type: "DefaultPaginator"
+        # Same CustomRetriever factory-gap boilerplate: the paginator needs url_base
+        # supplied via $parameters because create_custom_component() doesn't wire it in
+        # the way create_simple_retriever() does for a stock SimpleRetriever.
+        $parameters:
+          url_base: "{{ config['base_url'] or 'https://app.posthog.com'}}/api/"
         page_size_option:
           inject_into: "request_parameter"
           field_name: "limit"

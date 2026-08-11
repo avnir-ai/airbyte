@@ -3,7 +3,7 @@
 #
 
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping, MutableMapping, Optional
+from typing import Any, Iterable, Mapping, Optional
 
 from airbyte_cdk.sources.declarative.incremental import Cursor
 from airbyte_cdk.sources.declarative.retrievers.simple_retriever import SimpleRetriever
@@ -15,43 +15,39 @@ from airbyte_cdk.sources.declarative.types import Record, StreamSlice, StreamSta
 class EventsSimpleRetriever(SimpleRetriever):
     def __post_init__(self, parameters: Mapping[str, Any]):
         super().__post_init__(parameters)
+        # create_custom_component() (model_to_component_factory.py) does not replicate
+        # create_simple_retriever()'s `cursor = stream_slicer if isinstance(stream_slicer, Cursor) else None`
+        # wiring, so we have to do it ourselves here or self.cursor stays None and state is never saved.
         self.cursor = self.stream_slicer if isinstance(self.stream_slicer, Cursor) else None
 
-    def request_params(
+    def _request_params(
         self,
-        stream_state: StreamSlice,
+        stream_state: Optional[StreamState] = None,
         stream_slice: Optional[StreamSlice] = None,
         next_page_token: Optional[Mapping[str, Any]] = None,
-    ) -> MutableMapping[str, Any]:
-        """Events API return records in descendent order (newest first).
-        Default page limit is 100 items.
+    ) -> Mapping[str, Any]:
+        """Events API returns records in descendant order (newest first).
 
-        Even though API mentions such pagination params as 'limit' and 'offset', they are actually ignored.
-        Instead, response contains 'next' url with datetime range for next OLDER records, like:
+        The 'limit'/'offset' request params are ignored by the API. Instead, the response
+        contains a 'next' url with the datetime range for the next (older) page, e.g.:
 
-        response:
         {
             "next": "https://app.posthog.com/api/projects/2331/events?after=2021-01-01T00%3A00%3A00.000000Z&before=2021-05-29T16%3A44%3A43.175000%2B00%3A00",
-            "results": [
-                {id ...},
-                {id ...},
-            ]
+            "results": [...]
         }
 
-        So if next_page_token is set (contains 'after'/'before' params),
-        then stream_slice params ('after'/'before') should be ignored.
+        DatetimeBasedCursor.get_request_params() always re-injects the *stream slice's* after/before
+        on every call regardless of next_page_token (incremental/datetime_based_cursor.py:207-214), which
+        duplicates and clobbers the paginator's narrower 'before' embedded in the next-page URL and resets
+        pagination back to page 1 forever. Suppress the slice's own after/before whenever we're paginating.
         """
-
         if next_page_token:
             stream_slice = {}
 
-        return self._get_request_options(
-            stream_slice,
-            next_page_token,
-            self.requester.get_request_params,
-            self.paginator.get_request_params,
-            self.stream_slicer.get_request_params,
-            self.requester.get_authenticator().get_request_body_json,
+        return super()._request_params(
+            stream_state=stream_state,
+            stream_slice=stream_slice,
+            next_page_token=next_page_token,
         )
 
 
